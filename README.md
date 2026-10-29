@@ -121,7 +121,3 @@ Tests exercise cross-package use, same-package and external tests, interfaces,
 promoted methods, generics, generated code, dynamic entry point exceptions,
 field preservation, build tags, load failures, name collisions, and fix
 idempotence.
-
-##Prior Art
-
-https://github.com/bep/punused
