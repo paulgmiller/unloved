@@ -1,4 +1,4 @@
-module github.com/paulgmiller/go-unexport
+module github.com/paulgmiller/unloved
 
 go 1.27.0
 

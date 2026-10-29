@@ -1,4 +1,4 @@
-// go-unexport checks a whole Go module for unnecessarily exported declarations.
+// unloved checks a whole Go module for unnecessarily exported declarations.
 package main
 
 import (
@@ -9,7 +9,7 @@ import (
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintln(flag.CommandLine.Output(), "Usage: go-unexport [flags] [package patterns]")
+		fmt.Fprintln(flag.CommandLine.Output(), "Usage: unloved [flags] [package patterns]")
 		fmt.Fprintln(flag.CommandLine.Output(), "Defaults to packages under internal directories; explicit patterns override this scope.")
 		flag.PrintDefaults()
 	}
