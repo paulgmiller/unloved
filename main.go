@@ -1,4 +1,4 @@
-// go-unexport checks a whole Go module for unnecessarily exported declarations.
+// unloved checks a whole Go module for unnecessarily exported declarations.
 package main
 
 import (
