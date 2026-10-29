@@ -33,6 +33,12 @@ Several tools address related questions about exported Go identifiers:
   tool for finding and renaming exported symbols that are not used outside a
   package. `unloved` is a separate implementation built around current Go package
   loading and type information.
+- [Staticcheck issue #288](https://github.com/dominikh/go-tools/issues/288)
+  discusses why detecting unused struct fields is difficult: reflection, cgo,
+  and syscalls can make writes meaningful without visible Go reads. The discussion
+  also notes that finding unused exported APIs needs a distinct analysis mode.
+  `unloved` checks whether exported declarations are used across package
+  boundaries; it deliberately does not judge struct fields.
 
 ## Install and run
 
