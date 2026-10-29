@@ -93,7 +93,7 @@ var _ promotedInterface = api.MakeOuter()
 func consume() int { _ = api.ExternalConst; _ = api.ExternalVar; var _ api.ExternalInterface; x:=api.New();_ = x.PublicField;_ = x.PublicMethod();_ = api.Reader();_ = api.Template(); _ = api.BoxValue(); _ = api.NewBox().Get(); return api.Used() }
 `,
 	})
-	findings, err := run(dir, "", false)
+	findings, err := run(dir, "", false, "./...")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,10 +106,10 @@ func consume() int { _ = api.ExternalConst; _ = api.ExternalVar; var _ api.Exter
 	if !slices.Equal(names, want) {
 		t.Fatalf("got %v, want %v", names, want)
 	}
-	if _, err := run(dir, "", true); err != nil {
+	if _, err := run(dir, "", true, "./..."); err != nil {
 		t.Fatal(err)
 	}
-	after, err := run(dir, "", false)
+	after, err := run(dir, "", false, "./...")
 	if err != nil {
 		t.Fatalf("renamed module does not type check: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestFixRejectsConflictsWithoutWriting(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := module(t, map[string]string{"fixture.go": tt.source})
-			_, err := run(dir, "", true)
+			_, err := run(dir, "", true, "./...")
 			if err == nil {
 				t.Fatal("expected conflict")
 			}
@@ -172,7 +172,7 @@ func TestLoadErrorsAndDirectives(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := module(t, map[string]string{"fixture.go": tt.source})
-			_, err := run(dir, "", false)
+			_, err := run(dir, "", false, "./...")
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("got %v, want %q", err, tt.want)
 			}
@@ -186,7 +186,7 @@ func TestBuildTags(t *testing.T) {
 		"special.go": "//go:build special\n\npackage fixture\ntype Special int",
 	})
 	for _, tag := range []string{"", "special"} {
-		findings, err := run(dir, tag, false)
+		findings, err := run(dir, tag, false, "./...")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -205,5 +205,63 @@ func TestLowerName(t *testing.T) {
 		if got := lowerName(input); got != want {
 			t.Errorf("%s: got %s, want %s", input, got, want)
 		}
+	}
+}
+
+func TestPackageSelection(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		patterns []string
+		want     []string
+	}{
+		{"default", nil, []string{"InternalOnly", "NestedOnly"}},
+		{"public opt-in", []string{"./api"}, []string{"PublicOnly"}},
+		{"multiple patterns", []string{"./api", "./nested/internal/..."}, []string{"NestedOnly", "PublicOnly"}},
+		{"whole module opt-in", []string{"./..."}, []string{"InternalOnly", "LookalikeOnly", "NestedOnly", "PublicOnly", "RootOnly"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			files := map[string]string{
+				"root.go":                     "package fixture; func RootOnly() {}",
+				"api/api.go":                  "package api; func PublicOnly() {}; func Used() {}",
+				"internal/api/api.go":         "package api; func InternalOnly() {}; func Used() {}",
+				"nested/internal/deep/api.go": "package deep; func NestedOnly() {}",
+				"internalized/api.go":         "package internalized; func LookalikeOnly() {}",
+				"consumer/use.go": `package consumer
+import ("example.com/fixture/api"; internalapi "example.com/fixture/internal/api")
+func use() { api.Used(); internalapi.Used() }
+`,
+			}
+			dir := module(t, files)
+			findings, err := run(dir, "", true, tt.patterns...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var names []string
+			for _, f := range findings {
+				names = append(names, f.name)
+			}
+			slices.Sort(names)
+			if !slices.Equal(names, tt.want) {
+				t.Fatalf("got %v, want %v", names, tt.want)
+			}
+			// Ensure fixing changes exactly the selected, unused declarations.
+			for name, before := range files {
+				after, err := os.ReadFile(filepath.Join(dir, name))
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, candidate := range []string{"RootOnly", "PublicOnly", "InternalOnly", "NestedOnly", "LookalikeOnly", "Used"} {
+					if strings.Contains(before, "func "+candidate+"()") {
+						want := candidate
+						if slices.Contains(tt.want, candidate) {
+							want = lowerName(candidate)
+						}
+						if !strings.Contains(string(after), "func "+want+"()") {
+							t.Errorf("%s: expected function %s", name, want)
+						}
+					}
+				}
+			}
+		})
 	}
 }

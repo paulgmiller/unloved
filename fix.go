@@ -181,7 +181,7 @@ func (c *checker) rename(findings []finding) error {
 	cfg := *c.config
 	cfg.Fset = token.NewFileSet()
 	cfg.Overlay = output
-	proposed, err := packages.Load(&cfg, "./...")
+	proposed, err := packages.Load(&cfg, c.patterns...)
 	if err != nil {
 		return fmt.Errorf("validate rename: %w", err)
 	}

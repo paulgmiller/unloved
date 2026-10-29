@@ -8,15 +8,16 @@ import (
 )
 
 func main() {
+	flag.Usage = func() {
+		fmt.Fprintln(flag.CommandLine.Output(), "Usage: go-unexport [flags] [package patterns]")
+		fmt.Fprintln(flag.CommandLine.Output(), "Defaults to packages under internal directories; explicit patterns override this scope.")
+		flag.PrintDefaults()
+	}
 	dir := flag.String("dir", ".", "module directory to check")
 	fix := flag.Bool("fix", false, "rename candidates and their references (review the diff and run tests)")
 	tags := flag.String("tags", "", "comma-separated build tags")
 	flag.Parse()
-	if flag.NArg() != 0 {
-		flag.Usage()
-		os.Exit(2)
-	}
-	findings, err := run(*dir, *tags, *fix)
+	findings, err := run(*dir, *tags, *fix, flag.Args()...)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)

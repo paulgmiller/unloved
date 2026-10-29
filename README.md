@@ -1,7 +1,7 @@
 # go-unexport
 
-Find Go declarations that are exported but never referenced by another package
-in the module. This is a standalone command and module: copy this directory to
+Find Go declarations in `internal` packages that are exported but never referenced
+by another package in the module. This is a standalone command and module: copy this directory to
 its own repository without any Careme source or dependencies.
 
 From this directory:
@@ -10,6 +10,10 @@ From this directory:
 go install .
 go-unexport -dir /path/to/module
 go-unexport -dir /path/to/module -fix
+# Explicitly opt into other packages (patterns are relative to -dir):
+go-unexport -dir /path/to/module ./api ./pkg/...
+# Explicitly opt into the entire module:
+go-unexport -dir /path/to/module -fix ./...
 ```
 
 From the Careme repository:
@@ -26,6 +30,13 @@ module dependencies. No language server or network service is required beyond
 normal Go dependency downloads.
 
 ## What is checked
+
+By default, only packages whose directory path within the module contains an
+`internal` component are candidates, including nested `internal` directories.
+Public packages remain unchanged. Positional Go package patterns override this
+default and select exactly those packages. The tool still analyzes the whole
+module for cross-package consumers, even when explicit patterns select fewer
+packages.
 
 Package-level types (including interfaces), functions, concrete methods,
 constants, and variables. References use Go type information, including generic
@@ -69,9 +80,9 @@ expose dead code to Staticcheck.
 Analysis covers the active build configuration only. Use `-tags` and the normal
 `GOOS`/`GOARCH` environment for other build configurations. Run the check
 separately for each module; nested modules are not loaded by `./...`. The tool
-cannot detect consumers outside the analyzed module, so use it on applications
-or internal packages, rather than assuming a public library's exports are safe
-to rename.
+cannot detect consumers outside the analyzed module. The default `internal`
+scope protects public APIs; explicitly selecting public packages can break
+dependent modules and requires knowing those exports are safe to rename.
 
 ## Development
 

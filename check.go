@@ -22,6 +22,7 @@ type checker struct {
 	config     *packages.Config
 	fset       *token.FileSet
 	packages   []*packages.Package
+	patterns   []string
 	candidates map[string]types.Object
 	required   map[string]bool
 }
@@ -36,7 +37,7 @@ func (c *checker) key(o types.Object) string {
 	return fmt.Sprintf("%s:%d", p.Filename, p.Offset)
 }
 
-func run(dir, tags string, fix bool) ([]finding, error) {
+func run(dir, tags string, fix bool, patterns ...string) ([]finding, error) {
 	dir, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -50,7 +51,29 @@ func run(dir, tags string, fix bool) ([]finding, error) {
 		cfg.BuildFlags = []string{"-tags=" + tags}
 	}
 	c.config = cfg
-	c.packages, err = packages.Load(cfg, "./...")
+	var selected map[string]bool
+	if len(patterns) > 0 {
+		// Selection limits candidates, never the search for consumers.
+		selectionConfig := *cfg
+		selectionConfig.Mode = packages.NeedName
+		selectionConfig.Tests = false
+		pkgs, err := packages.Load(&selectionConfig, patterns...)
+		if err != nil {
+			return nil, fmt.Errorf("load selected packages: %w", err)
+		}
+		selected = map[string]bool{}
+		for _, p := range pkgs {
+			if len(p.Errors) > 0 {
+				return nil, fmt.Errorf("load selected packages: %s", p.Errors[0])
+			}
+			selected[p.PkgPath] = true
+		}
+		if len(selected) == 0 {
+			return nil, fmt.Errorf("no packages matched %s", strings.Join(patterns, " "))
+		}
+	}
+	c.patterns = append([]string{"./..."}, patterns...)
+	c.packages, err = packages.Load(cfg, c.patterns...)
 	if err != nil {
 		return nil, fmt.Errorf("load module: %w", err)
 	}
@@ -73,6 +96,9 @@ func run(dir, tags string, fix bool) ([]finding, error) {
 				generated[c.fset.Position(f.Pos()).Filename] = true
 			}
 			if ast.IsGenerated(f) || strings.HasSuffix(c.fset.Position(f.Pos()).Filename, "_test.go") {
+				continue
+			}
+			if selected != nil && !selected[p.PkgPath] || selected == nil && !internalPackage(p) {
 				continue
 			}
 			if err := c.declarations(p, f); err != nil {
@@ -131,6 +157,24 @@ func run(dir, tags string, fix bool) ([]finding, error) {
 		}
 	}
 	return findings, nil
+}
+
+// Only directory components inside the module count: a public package in a
+// checkout whose parent happens to be named internal still has a public API.
+func internalPackage(p *packages.Package) bool {
+	if p.Module == nil || len(p.GoFiles) == 0 {
+		return false
+	}
+	rel, err := filepath.Rel(p.Module.Dir, filepath.Dir(p.GoFiles[0]))
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return false
+	}
+	for _, component := range strings.Split(filepath.ToSlash(rel), "/") {
+		if component == "internal" {
+			return true
+		}
+	}
+	return false
 }
 
 // Explicit exceptions need a reason and apply to one declaration.
