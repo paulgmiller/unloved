@@ -17,6 +17,23 @@ surface an agent must understand and maintain, while the budget tracks the cost
 of the implementation. `unloved` checks visibility; it does not measure complexity
 or establish whether a public library has consumers outside the module.
 
+## Prior art
+
+Several tools address related questions about exported Go identifiers:
+
+- [bep/punused](https://github.com/bep/punused) uses `gopls` to find exported
+  symbols with no references in the project. It documents limitations around
+  external consumers, reflection, and interfaces. `unloved` focuses on the
+  different case where a symbol is used, but only inside its own package.
+- [GoLand's “Unnecessarily exported identifier” inspection](https://www.jetbrains.com/help/inspectopedia/GoUnnecessarilyExportedIdentifiers.html)
+  reports exported identifiers used only in their defining package. The
+  inspection is available in GoLand and Qodana; `unloved` provides a standalone
+  command-line check that can run with Go tooling in CI.
+- [gounexport](https://github.com/dooman87/gounexport) is an earlier command-line
+  tool for finding and renaming exported symbols that are not used outside a
+  package. `unloved` is a separate implementation built around current Go package
+  loading and type information.
+
 ## Install and run
 
 ```sh
